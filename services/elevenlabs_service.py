@@ -57,6 +57,7 @@ async def text_to_speech(text: str, lang: str = "ru") -> str:
         },
     }
 
+    logger.info(f"ElevenLabs key (first 10): {_API_KEY[:10]!r}, len={len(_API_KEY)}")
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
             f"{_BASE_URL}/text-to-speech/{voice_id}",
