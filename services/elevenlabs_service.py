@@ -45,7 +45,6 @@ async def text_to_speech(text: str, lang: str = "ru") -> str:
     headers = {
         "xi-api-key": _API_KEY,
         "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
     }
     payload = {
         "text": text,
