@@ -1,12 +1,12 @@
 """
-Генерация голоса через ElevenLabs TTS API.
+Генерация голоса через Google Cloud Text-to-Speech API.
 Аудио кэшируется в папке audio_cache/ и отдаётся по HTTP.
 """
 
 from __future__ import annotations
 import os
 import uuid
-import asyncio
+import base64
 import logging
 from pathlib import Path
 
@@ -17,60 +17,50 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-_API_KEY      = os.getenv("ELEVENLABS_API_KEY", "")
-_VOICE_RU     = os.getenv("ELEVENLABS_VOICE_ID_RU", "EXAVITQu4vr4xnSDxMaL")
-_VOICE_KZ     = os.getenv("ELEVENLABS_VOICE_ID_KZ", "EXAVITQu4vr4xnSDxMaL")
-_MODEL        = os.getenv("ELEVENLABS_MODEL_ID", "eleven_multilingual_v2")
-_SERVER_URL   = os.getenv("SERVER_URL", "http://localhost:8000")
+_API_KEY    = os.getenv("GOOGLE_TTS_API_KEY", "")
+_SERVER_URL = os.getenv("SERVER_URL", "http://localhost:8000")
 
 AUDIO_DIR = Path("audio_cache")
 AUDIO_DIR.mkdir(exist_ok=True)
 
-_BASE_URL = "https://api.elevenlabs.io/v1"
+_BASE_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 
-
-def _get_voice_id(lang: str) -> str:
-    return _VOICE_KZ if lang == "kz" else _VOICE_RU
+_VOICE_MAP = {
+    "ru": {"languageCode": "ru-RU", "name": "ru-RU-Wavenet-C", "ssmlGender": "FEMALE"},
+    "kz": {"languageCode": "kk-KZ", "ssmlGender": "FEMALE"},
+}
 
 
 async def text_to_speech(text: str, lang: str = "ru") -> str:
     """
-    Конвертирует текст в MP3 через ElevenLabs.
+    Конвертирует текст в MP3 через Google Cloud TTS.
     Возвращает публичный URL аудиофайла.
     """
-    voice_id = _get_voice_id(lang)
+    voice = _VOICE_MAP.get(lang, _VOICE_MAP["ru"])
     filename = f"{uuid.uuid4().hex}.mp3"
     filepath = AUDIO_DIR / filename
 
-    headers = {
-        "xi-api-key": _API_KEY,
-        "Content-Type": "application/json",
-    }
     payload = {
-        "text": text,
-        "model_id": _MODEL,
-        "voice_settings": {
-            "stability": 0.5,
-            "similarity_boost": 0.75,
-            "style": 0.0,
-            "use_speaker_boost": True,
-        },
+        "input": {"text": text},
+        "voice": voice,
+        "audioConfig": {"audioEncoding": "MP3", "speakingRate": 1.0},
     }
 
-    logger.info(f"ElevenLabs key (first 10): {_API_KEY[:10]!r}, len={len(_API_KEY)}")
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
-            f"{_BASE_URL}/text-to-speech/{voice_id}",
-            headers=headers,
+            _BASE_URL,
+            params={"key": _API_KEY},
             json=payload,
         )
         if resp.status_code != 200:
-            logger.error(f"ElevenLabs error {resp.status_code}: {resp.text}")
+            logger.error(f"Google TTS error {resp.status_code}: {resp.text}")
         resp.raise_for_status()
-        filepath.write_bytes(resp.content)
+
+        audio_content = resp.json()["audioContent"]
+        filepath.write_bytes(base64.b64decode(audio_content))
 
     audio_url = f"{_SERVER_URL}/audio/{filename}"
-    logger.info(f"ElevenLabs TTS generated: {audio_url}")
+    logger.info(f"Google TTS generated: {audio_url}")
     return audio_url
 
 
