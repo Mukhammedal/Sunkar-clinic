@@ -21,7 +21,6 @@ from typing import Any
 from core import nlu
 from scripts.conversation_scripts import get_script, spec_display
 from services import supabase_service as db
-from services.elevenlabs_service import text_to_speech
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +59,6 @@ async def process(call_id: str, phone: str, state: str, user_text: str) -> dict:
         action   = "hangup"
         new_state = "error"
 
-    audio_url = await text_to_speech(text, lang)
-
     db.update_call_session(
         call_id,
         state=new_state,
@@ -73,7 +70,7 @@ async def process(call_id: str, phone: str, state: str, user_text: str) -> dict:
     if action in ("hangup", "transfer"):
         db.end_call_session(call_id, status=action)
 
-    return {"audio_url": audio_url, "action": action, "state": new_state}
+    return {"text": text, "lang": lang, "action": action, "state": new_state}
 
 
 # ── Диспетчер состояний ───────────────────────────────────────────────────────

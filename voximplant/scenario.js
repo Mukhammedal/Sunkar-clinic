@@ -12,28 +12,28 @@
 require(Modules.ASR);
 
 // ── Настройки ─────────────────────────────────────────────────────────────────
-var BACKEND_URL     = "https://hornblendic-harper-unuseable.ngrok-free.dev";
+var BACKEND_URL     = "https://med.rckazakstan.com";
 var OPERATOR_NUMBER = "+77071234567";               // ← номер живого оператора
-var ASR_LANGUAGE    = ASRLanguage.RUSSIAN_RU;       // Язык распознавания речи
+var ASR_LANGUAGE    = ASRLanguage.RUSSIAN_RU;
 
-var mainCall   = null;
-var callId     = null;
+var mainCall    = null;
+var callId      = null;
 var callerPhone = null;
-var currentState = "start";
-var asrInstance  = null;
+var currentLang = "ru";
+var asrInstance = null;
 
-// ── Входящий звонок ──────────────────────────────────────────────────────────
+// ── Входящий звонок ───────────────────────────────────────────────────────────
 VoxEngine.addEventListener(AppEvents.CallAlerting, function (e) {
     mainCall    = e.call;
-    callId      = VoxEngine.callId();
+    callId      = e.call.id();
     callerPhone = e.call.callerid();
 
     Logger.write("Incoming call from: " + callerPhone + " | callId: " + callId);
 
     mainCall.addEventListener(CallEvents.Connected, onCallConnected);
     mainCall.addEventListener(CallEvents.Disconnected, onCallDisconnected);
-    mainCall.addEventListener(CallEvents.Failed, function (e) {
-        Logger.write("Call failed: " + e.reason);
+    mainCall.addEventListener(CallEvents.Failed, function (ev) {
+        Logger.write("Call failed: " + ev.reason);
         endSession("failed");
         VoxEngine.terminate();
     });
@@ -56,8 +56,6 @@ function onCallDisconnected(e) {
 
 // ── Основной цикл разговора ───────────────────────────────────────────────────
 function processConversation(state, userText) {
-    currentState = state;
-
     Net.httpRequestAsync(
         BACKEND_URL + "/api/call/process",
         {
@@ -86,10 +84,11 @@ function processConversation(state, userText) {
                 return;
             }
 
-            Logger.write(
-                "Backend response: action=" + response.action +
-                " state=" + response.state
-            );
+            Logger.write("Backend response: action=" + response.action + " state=" + response.state);
+
+            if (response.lang) {
+                currentLang = response.lang;
+            }
 
             currentState = response.state;
 
@@ -98,12 +97,12 @@ function processConversation(state, userText) {
                     transferToOperator(response.operator_number || OPERATOR_NUMBER);
                     break;
                 case "hangup":
-                    playAudio(response.audio_url, function () {
+                    sayText(response.text, function () {
                         mainCall.hangup();
                     });
                     break;
                 default: // "play"
-                    playAudio(response.audio_url, function () {
+                    sayText(response.text, function () {
                         startListening(response.state);
                     });
                     break;
@@ -112,26 +111,23 @@ function processConversation(state, userText) {
     );
 }
 
-// ── Воспроизведение аудио ─────────────────────────────────────────────────────
-function playAudio(audioUrl, onFinished) {
-    var player = VoxEngine.createURLPlayer(audioUrl);
+// ── Произнести текст через Voximplant TTS ─────────────────────────────────────
+function sayText(text, onFinished) {
+    var voice = (currentLang === "kz")
+        ? VoiceList.Russian_Female_Ekaterina   // Казахский язык — используем русский голос
+        : VoiceList.Russian_Female_Ekaterina;
 
-    player.addEventListener(PlayerEvents.PlaybackFinished, function () {
-        Logger.write("Playback finished: " + audioUrl);
+    mainCall.say(text, { language: voice });
+
+    var handler = function () {
+        mainCall.removeEventListener(CallEvents.PlaybackFinished, handler);
         if (onFinished) onFinished();
-    });
-
-    player.addEventListener(PlayerEvents.PlaybackError, function (e) {
-        Logger.write("Playback error: " + e.error + " URL=" + audioUrl);
-        if (onFinished) onFinished();
-    });
-
-    mainCall.startPlayback(player);
+    };
+    mainCall.addEventListener(CallEvents.PlaybackFinished, handler);
 }
 
 // ── Распознавание речи ────────────────────────────────────────────────────────
 function startListening(returnState) {
-    // Останавливаем предыдущий ASR
     if (asrInstance) {
         try { mainCall.stopMediaTo(asrInstance); } catch (e) {}
     }
@@ -139,15 +135,14 @@ function startListening(returnState) {
     asrInstance = VoxEngine.createASR({
         lang:             ASR_LANGUAGE,
         singleUtterance:  true,
-        noSpeechTimeout:  7,    // секунд тишины до завершения
-        maxSpeechTimeout: 20    // максимум ждём речи
+        noSpeechTimeout:  7,
+        maxSpeechTimeout: 20
     });
 
     asrInstance.addEventListener(ASREvents.Result, function (e) {
         Logger.write("ASR result: [" + e.text + "] confidence=" + e.confidence);
         mainCall.stopMediaTo(asrInstance);
         asrInstance = null;
-
         var recognized = (e.confidence > 0.3) ? e.text : "";
         processConversation(returnState, recognized);
     });
@@ -188,7 +183,6 @@ function transferToOperator(operatorNumber) {
 
     operatorCall.addEventListener(CallEvents.Failed, function (e) {
         Logger.write("Operator call failed: " + e.reason);
-        // Оператор недоступен — попрощаться с пациентом
         mainCall.say(
             "К сожалению, оператор сейчас недоступен. Пожалуйста, перезвоните позже.",
             { language: VoiceList.Russian_Female_Ekaterina }
