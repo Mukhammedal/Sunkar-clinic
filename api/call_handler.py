@@ -59,7 +59,7 @@ async def call_process(req: CallProcessRequest) -> dict:
         logger.exception(f"[{req.call_id}] Unhandled error: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
 
-    logger.info(f"[{req.call_id}] → action={result['action']} new_state={result['state']}")
+    logger.info(f"[{req.call_id}] → action={result['action']} new_state={result['state']} text={result.get('text','')[:60]!r}")
     return result
 
 
