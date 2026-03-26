@@ -65,6 +65,8 @@ async def text_to_speech(text: str, lang: str = "ru") -> str:
             headers=headers,
             json=payload,
         )
+        if resp.status_code != 200:
+            logger.error(f"ElevenLabs error {resp.status_code}: {resp.text}")
         resp.raise_for_status()
         filepath.write_bytes(resp.content)
 
