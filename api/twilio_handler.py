@@ -5,6 +5,7 @@ Twilio сам распознаёт речь и передаёт текст на�
 
 from __future__ import annotations
 import logging
+import os
 
 from fastapi import APIRouter, Form, Response
 from typing import Optional
@@ -15,6 +16,8 @@ from services import supabase_service as db
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/twilio", tags=["twilio"])
+
+BASE_URL = "https://med.rckazakstan.com"
 
 
 def twiml(content: str) -> Response:
@@ -39,7 +42,7 @@ def gather(action: str, text: str, lang: str = "ru") -> str:
         f'action="{action}" method="POST">'
         f'<Say voice="{voice}" language="ru-RU">{text}</Say>'
         f'</Gather>'
-        f'<Redirect method="POST">{action}?timeout=1</Redirect>'
+        f'<Redirect method="POST">{action}&amp;timeout=1</Redirect>'
     )
 
 
@@ -64,7 +67,7 @@ async def voice_incoming(
     )
 
     return twiml(gather(
-        action=f"/twilio/gather?call_id={CallSid}&phone={From}&state=language_select",
+        action=f"{BASE_URL}/twilio/gather?call_id={CallSid}&phone={From}&state=language_select",
         text=greeting
     ))
 
@@ -111,7 +114,7 @@ async def voice_gather(
 
     # action == "play" — продолжаем разговор
     return twiml(gather(
-        action=f"/twilio/gather?call_id={cid}&phone={phone}&state={new_state}",
+        action=f"{BASE_URL}/twilio/gather?call_id={cid}&phone={phone}&state={new_state}",
         text=text,
         lang=lang,
     ))
