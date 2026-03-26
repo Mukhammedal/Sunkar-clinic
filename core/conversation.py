@@ -28,6 +28,10 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 2
 
 
+async def process_text(call_id: str, phone: str, state: str, user_text: str) -> dict:
+    return await process(call_id, phone, state, user_text)
+
+
 async def process(call_id: str, phone: str, state: str, user_text: str) -> dict:
     """
     Основная точка входа. Возвращает словарь для Voximplant:

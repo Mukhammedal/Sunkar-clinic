@@ -8,3 +8,4 @@ dateparser==1.2.0
 python-multipart==0.0.9
 aiofiles==23.2.1
 pydantic==2.9.2
+twilio>=9.0.0

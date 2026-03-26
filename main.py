@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 from api.call_handler import router as call_router
+from api.twilio_handler import router as twilio_router
 from scheduler.reminder_scheduler import start_scheduler
 from services.elevenlabs_service import cleanup_old_audio
 
@@ -67,6 +68,7 @@ app.mount("/audio", StaticFiles(directory="audio_cache"), name="audio")
 
 # API маршруты
 app.include_router(call_router, prefix="/api")
+app.include_router(twilio_router)
 
 
 @app.get("/health")
