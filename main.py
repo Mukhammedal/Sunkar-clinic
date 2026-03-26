@@ -20,6 +20,7 @@ from dotenv import load_dotenv
 
 from api.call_handler import router as call_router
 from api.twilio_handler import router as twilio_router
+from api.portal_api import router as portal_router
 from scheduler.reminder_scheduler import start_scheduler
 from services.elevenlabs_service import cleanup_old_audio
 
@@ -66,9 +67,13 @@ app = FastAPI(
 # Статические файлы — аудио для Voximplant
 app.mount("/audio", StaticFiles(directory="audio_cache"), name="audio")
 
+# Портал — статические файлы
+app.mount("/portal", StaticFiles(directory="portal", html=True), name="portal")
+
 # API маршруты
 app.include_router(call_router, prefix="/api")
 app.include_router(twilio_router)
+app.include_router(portal_router)
 
 
 @app.get("/health")
